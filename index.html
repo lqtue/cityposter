@@ -703,7 +703,10 @@
 
     <script>
         // Configuration
-        const HUGGINGFACE_SPACE_URL = 'https://lqtue-cityposter.hf.space'; // Replace with your actual Space URL if different
+        // !!! IMPORTANT: Make sure this URL is correct for YOUR Hugging Face Space !!!
+        // It should be in the format: https://YOUR_USERNAME-YOUR_SPACE_NAME.hf.space
+        const HUGGINGFACE_SPACE_URL = 'https://lqtue-cityposter.hf.space'; 
+        const API_ENDPOINT_PATH = '/run/predict'; // Changed from /api/predict
         
         // Global state
         let currentStep = 1;
@@ -816,41 +819,46 @@
             searchResultsContainer.innerHTML = '';
 
             try {
-                const response = await fetch(`${HUGGINGFACE_SPACE_URL}/api/predict`, {
+                const response = await fetch(`${HUGGINGFACE_SPACE_URL}${API_ENDPOINT_PATH}`, { // Using API_ENDPOINT_PATH
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ "data": [query], "fn_index": 0 }) // fn_index 0 for search_city_real
                 });
 
                 if (!response.ok) {
-                    const errorData = await response.json().catch(() => null);
-                    throw new Error(`API request failed: ${response.status} ${response.statusText}. ${errorData ? errorData.error || '' : ''}`);
+                    const errorText = await response.text(); // Get raw error text for better debugging
+                    throw new Error(`API request failed: ${response.status} ${response.statusText}. Server response: ${errorText}`);
                 }
 
                 const jsonResponse = await response.json();
-                // Expected: jsonResponse.data[0] = { results: [ {name:..., bbox:..., ...}, ... ], note: "..." }
                 
                 let apiResults = [];
                 let searchNote = "";
 
                 if (jsonResponse.data && jsonResponse.data[0]) {
-                    const backendOutput = jsonResponse.data[0];
-                    if (backendOutput && Array.isArray(backendOutput.results)) {
-                        apiResults = backendOutput.results;
+                    const backendOutput = jsonResponse.data[0]; // This should be the direct JSON string from search_city_real
+                    const parsedBackendOutput = JSON.parse(backendOutput); // Parse the JSON string
+
+                    if (parsedBackendOutput && Array.isArray(parsedBackendOutput.results)) {
+                        apiResults = parsedBackendOutput.results;
                     }
-                    if (backendOutput && typeof backendOutput.note === 'string') {
-                        searchNote = backendOutput.note;
+                    if (parsedBackendOutput && typeof parsedBackendOutput.note === 'string') {
+                        searchNote = parsedBackendOutput.note;
                     }
-                } else {
+                } else if (jsonResponse.error) {
+                    throw new Error(`API Error: ${jsonResponse.error}`);
+                } 
+                else {
                     console.warn("Unexpected search API response structure:", jsonResponse);
+                    throw new Error("Unexpected API response format from search.");
                 }
                 
                 displaySearchResults(apiResults, searchNote);
                 
             } catch (error) {
                 console.error('Search error:', error);
-                showError(errorDiv, `Search failed: ${error.message}`);
-                searchResultsContainer.innerHTML = `<div class="search-result">Error: ${error.message}</div>`;
+                showError(errorDiv, `Search failed: ${error.message}. Please check the console for more details and ensure the Hugging Face Space is running correctly at ${HUGGINGFACE_SPACE_URL}.`);
+                searchResultsContainer.innerHTML = `<div class="search-result">Error during search.</div>`;
                 searchResultsContainer.classList.add('show');
             } finally {
                 searchBtn.disabled = false;
@@ -869,8 +877,8 @@
                     if (result && typeof result.name === 'string') {
                         const item = document.createElement('div');
                         item.className = 'search-result';
-                        item.textContent = result.name; // Display name like "Paris, Ile-de-France, France"
-                        item.onclick = () => selectCity(result); // Pass the full result object
+                        item.textContent = result.name; 
+                        item.onclick = () => selectCity(result); 
                         container.appendChild(item);
                     }
                 });
@@ -885,13 +893,13 @@
         }
 
         function selectCity(cityData) {
-            selectedCityData = cityData; // Stores {name, bbox, lat, lon, ...}
+            selectedCityData = cityData; 
             document.getElementById('searchResults').classList.remove('show');
             const selectedDiv = document.getElementById('selectedCity');
             selectedDiv.innerHTML = `<strong>Selected:</strong> ${cityData.name}`;
             selectedDiv.classList.add('show');
             document.getElementById('searchError').classList.remove('show');
-            updateStepDisplay(); // Enables "Continue" button
+            updateStepDisplay(); 
         }
 
         async function generateMap() {
@@ -914,7 +922,8 @@
             progressContainer.classList.add('show');
             resultContainer.classList.remove('show');
             generateErrorDiv.classList.remove('show');
-            progressFill.style.backgroundColor = '#007aff'; // Reset color
+            progressFill.style.backgroundColor = '#007aff'; 
+            generatedImageData = null; // Reset previous image data
             
             let serverProgressInterval;
 
@@ -929,21 +938,20 @@
                 const loadWater = document.getElementById('loadWater').checked;
                 const loadBuildings = document.getElementById('loadBuildings').checked;
 
-                // Animate progress bar slowly while waiting for server
                 let currentProgress = 20;
                 serverProgressInterval = setInterval(() => {
-                    if (currentProgress < 85) { // Don't go to 100% until response received
+                    if (currentProgress < 85) { 
                         currentProgress += 1;
                         progressFill.style.width = `${currentProgress}%`;
                     }
-                }, 300); // Adjust timing as needed, e.g. 300ms for slower progress
+                }, 300); 
 
-                const response = await fetch(`${HUGGINGFACE_SPACE_URL}/api/predict`, {
+                const response = await fetch(`${HUGGINGFACE_SPACE_URL}${API_ENDPOINT_PATH}`, { // Using API_ENDPOINT_PATH
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         "data": [
-                            selectedCityData.name, // Pass the full display name from geocoding
+                            selectedCityData.name, 
                             selectedPalette,
                             loadWater,
                             loadBuildings
@@ -952,29 +960,44 @@
                     })
                 });
                 
-                clearInterval(serverProgressInterval); // Stop animation
+                clearInterval(serverProgressInterval); 
 
                 if (!response.ok) {
-                    const errorData = await response.json().catch(() => ({ error: "Unknown API error" }));
-                    let errorMsg = `API request failed: ${response.status} ${response.statusText}`;
-                    if (errorData && errorData.error) {
-                        errorMsg += `. Server error: ${errorData.error}`;
-                    } else if (errorData && errorData.data && errorData.data[1]) { // Check if backend provided status
-                         errorMsg += `. ${errorData.data[1]}`;
-                    }
-                    throw new Error(errorMsg);
+                    const errorText = await response.text();
+                    throw new Error(`API request failed: ${response.status} ${response.statusText}. Server response: ${errorText}`);
                 }
                 
                 progressText.textContent = 'Processing server response...';
                 progressFill.style.width = `90%`;
                 const jsonResponse = await response.json();
 
-                if (jsonResponse.error) { // Top-level error from Gradio/HF wrapper
-                    throw new Error(jsonResponse.error);
+                if (jsonResponse.error) { 
+                    throw new Error(`API Error: ${jsonResponse.error}`);
                 }
 
-                const imageBase64 = jsonResponse.data[0]; // Expected: base64 image string or null
-                const statusMessage = jsonResponse.data[1]; // Expected: status message string
+                // Expected: jsonResponse.data[0] is PIL Image (as base64 by Gradio client, but raw for direct API it's {path, url, or base64 for gr.Image})
+                // jsonResponse.data[1] is status message string
+                
+                const imageDataResponse = jsonResponse.data[0]; // This could be an object like { "path": "...", "url": "...", "is_file": true } or direct base64 string for some types
+                const statusMessage = jsonResponse.data[1];
+
+                // Gradio API returns image data for gr.Image in a specific format.
+                // If it's a dict with "is_file": true, "name" (path on server), "data" (base64 if not file)
+                // For simplicity, we expect your backend with gr.Image to send base64 if it's not writing a file that's publicly accessible.
+                // Your backend creates a PIL image. Gradio usually handles its conversion for the UI.
+                // For the API, if it's not a direct base64 string, you might need to adjust how it's sent or fetched.
+                // Let's assume for now that `imageDataResponse` will be the base64 string or you modify backend to ensure it is.
+                // The provided backend uses PIL Image, which Gradio typically auto-converts to base64 for `gr.Image` output in API calls.
+
+                let imageBase64 = null;
+                if (typeof imageDataResponse === 'string' && imageDataResponse.startsWith('data:image')) {
+                    imageBase64 = imageDataResponse.split(',')[1]; // Extract base64 part if full data URL
+                } else if (typeof imageDataResponse === 'string') { // Assume it's just the base64 part
+                    imageBase64 = imageDataResponse;
+                } else if (imageDataResponse && typeof imageDataResponse.data === 'string') { // Gradio object format
+                    imageBase64 = imageDataResponse.data;
+                }
+
 
                 if (imageBase64) {
                     generatedImageData = imageBase64;
@@ -985,7 +1008,7 @@
                         resultContainerH3.textContent = "✅ Map Generated Successfully!";
                     } else if (statusMessage.includes("⚠️")) {
                         resultContainerH3.textContent = "⚠️ Map Generated with Warnings";
-                         progressFill.style.backgroundColor = '#ffc107'; // Yellow for warning
+                         progressFill.style.backgroundColor = '#ffc107'; 
                     } else {
                         resultContainerH3.textContent = "ℹ️ Map Generation Complete";
                     }
@@ -1000,22 +1023,24 @@
                     }, 1500);
 
                 } else {
-                    // No image, statusMessage should explain why
-                    let errorMessage = statusMessage || "Map generation failed: No image data received and no specific error message.";
-                    if (statusMessage && (statusMessage.includes("❌") || statusMessage.toLowerCase().includes("error"))) {
-                         progressFill.style.backgroundColor = '#dc3545'; // Red for error
+                    let errorMessage = statusMessage || "Map generation failed: No image data received.";
+                     if (statusMessage && (statusMessage.includes("❌") || statusMessage.toLowerCase().includes("error"))) {
+                         progressFill.style.backgroundColor = '#dc3545'; 
+                    }
+                    // Include more details if imageDataResponse was an object but not what we expected
+                    if (typeof imageDataResponse === 'object' && imageDataResponse !== null) {
+                        errorMessage += ` (Received: ${JSON.stringify(imageDataResponse)})`;
                     }
                     throw new Error(errorMessage);
                 }
 
             } catch (error) {
-                clearInterval(serverProgressInterval); // Ensure interval is cleared on error
+                clearInterval(serverProgressInterval); 
                 console.error("Generation error:", error);
-                showError(generateErrorDiv, `Map generation failed:\n${error.message}`);
-                progressFill.style.width = `100%`; // Show full bar but error color
-                progressFill.style.backgroundColor = '#dc3545'; // Red for error
+                showError(generateErrorDiv, `Map generation failed:\n${error.message}. Please check the console and ensure the Hugging Face Space API is responding correctly.`);
+                progressFill.style.width = `100%`; 
+                progressFill.style.backgroundColor = '#dc3545'; 
                 progressText.textContent = "Error!";
-                // Keep progress container visible shortly to show error state
                 setTimeout(() => {
                     progressContainer.classList.remove('show');
                 }, 3000);
