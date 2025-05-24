@@ -1,0 +1,977 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Custom Map Generator</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);
+            color: white;
+            padding: 40px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 3em;
+            margin-bottom: 10px;
+            font-weight: 700;
+        }
+
+        .header p {
+            font-size: 1.2em;
+            opacity: 0.9;
+        }
+
+        .tech-stack {
+            background: rgba(255,255,255,0.1);
+            padding: 15px;
+            border-radius: 10px;
+            margin-top: 20px;
+            font-size: 0.9em;
+        }
+
+        .content {
+            padding: 40px;
+        }
+
+        .step {
+            margin-bottom: 40px;
+            padding: 30px;
+            background: #f8fafc;
+            border-radius: 15px;
+            border-left: 5px solid #4f46e5;
+        }
+
+        .step h2 {
+            color: #1e293b;
+            margin-bottom: 20px;
+            font-size: 1.5em;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .step-icon {
+            width: 30px;
+            height: 30px;
+            background: #4f46e5;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: bold;
+        }
+
+        .status-indicator {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 12px;
+            border-radius: 20px;
+            font-size: 0.85em;
+            font-weight: 600;
+            margin-bottom: 20px;
+        }
+
+        .status-online {
+            background: #dcfce7;
+            color: #166534;
+        }
+
+        .status-offline {
+            background: #fef2f2;
+            color: #dc2626;
+        }
+
+        .status-loading {
+            background: #fef3c7;
+            color: #92400e;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: #374151;
+        }
+
+        input, select, button {
+            width: 100%;
+            padding: 12px 16px;
+            border: 2px solid #e5e7eb;
+            border-radius: 10px;
+            font-size: 16px;
+            transition: all 0.3s ease;
+        }
+
+        input:focus, select:focus {
+            outline: none;
+            border-color: #4f46e5;
+            box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.1);
+        }
+
+        .search-container {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+
+        .search-container input {
+            flex: 1;
+        }
+
+        .search-container button {
+            width: auto;
+            padding: 12px 24px;
+            background: #4f46e5;
+            color: white;
+            border: none;
+            cursor: pointer;
+            font-weight: 600;
+        }
+
+        .search-container button:hover:not(:disabled) {
+            background: #4338ca;
+            transform: translateY(-2px);
+        }
+
+        .search-container button:disabled {
+            background: #9ca3af;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .search-results {
+            background: white;
+            border: 2px solid #e5e7eb;
+            border-radius: 10px;
+            margin-top: 10px;
+            display: none;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+
+        .search-results.show {
+            display: block;
+        }
+
+        .search-result {
+            padding: 15px;
+            border-bottom: 1px solid #e5e7eb;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        .search-result:hover {
+            background: #f3f4f6;
+        }
+
+        .search-result:last-child {
+            border-bottom: none;
+        }
+
+        .selected-city {
+            background: #dcfce7;
+            border: 2px solid #16a34a;
+            padding: 15px;
+            border-radius: 10px;
+            margin-top: 10px;
+            display: none;
+        }
+
+        .selected-city.show {
+            display: block;
+        }
+
+        .selected-city strong {
+            color: #15803d;
+        }
+
+        .checkbox-group {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+
+        .checkbox-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 15px;
+            background: white;
+            border: 2px solid #e5e7eb;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .checkbox-item:hover {
+            border-color: #4f46e5;
+            background: #f8fafc;
+        }
+
+        .checkbox-item input[type="checkbox"] {
+            width: 20px;
+            height: 20px;
+            margin: 0;
+        }
+
+        .palette-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+
+        .palette-card {
+            padding: 20px;
+            border: 2px solid #e5e7eb;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            background: white;
+        }
+
+        .palette-card:hover {
+            border-color: #4f46e5;
+            transform: translateY(-2px);
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+        }
+
+        .palette-card.selected {
+            border-color: #4f46e5;
+            background: #f0f9ff;
+        }
+
+        .palette-name {
+            font-weight: 600;
+            margin-bottom: 10px;
+            color: #1e293b;
+        }
+
+        .palette-colors {
+            display: flex;
+            gap: 3px;
+            height: 20px;
+        }
+
+        .palette-color {
+            flex: 1;
+            border-radius: 3px;
+            border: 1px solid rgba(0,0,0,0.1);
+        }
+
+        .generate-btn {
+            background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+            color: white;
+            border: none;
+            padding: 20px 40px;
+            font-size: 18px;
+            font-weight: 700;
+            border-radius: 15px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .generate-btn:hover:not(:disabled) {
+            transform: translateY(-3px);
+            box-shadow: 0 15px 40px rgba(16, 185, 129, 0.3);
+        }
+
+        .generate-btn:disabled {
+            background: #9ca3af;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+
+        .progress-container {
+            margin-top: 20px;
+            padding: 20px;
+            background: #f3f4f6;
+            border-radius: 10px;
+            display: none;
+        }
+
+        .progress-container.show {
+            display: block;
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 8px;
+            background: #e5e7eb;
+            border-radius: 10px;
+            overflow: hidden;
+            margin-bottom: 10px;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #4f46e5, #7c3aed);
+            width: 0%;
+            transition: width 0.3s ease;
+        }
+
+        .progress-text {
+            text-align: center;
+            font-weight: 600;
+            color: #374151;
+        }
+
+        .result-container {
+            margin-top: 30px;
+            padding: 30px;
+            background: #f0fdf4;
+            border: 2px solid #16a34a;
+            border-radius: 15px;
+            text-align: center;
+            display: none;
+        }
+
+        .result-container.show {
+            display: block;
+        }
+
+        .result-preview {
+            max-width: 100%;
+            margin: 20px 0;
+            border-radius: 10px;
+            overflow: hidden;
+        }
+
+        .result-preview img {
+            max-width: 100%;
+            height: auto;
+            border-radius: 10px;
+        }
+
+        .download-btn {
+            background: #4f46e5;
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            border-radius: 10px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .download-btn:hover {
+            background: #4338ca;
+            transform: translateY(-2px);
+        }
+
+        .error-message {
+            background: #fef2f2;
+            border: 2px solid #fca5a5;
+            color: #dc2626;
+            padding: 15px;
+            border-radius: 10px;
+            margin-top: 10px;
+            display: none;
+        }
+
+        .error-message.show {
+            display: block;
+        }
+
+        .footer {
+            background: #f8fafc;
+            padding: 20px;
+            text-align: center;
+            color: #6b7280;
+            border-top: 1px solid #e5e7eb;
+        }
+
+        .footer a {
+            color: #4f46e5;
+            text-decoration: none;
+        }
+
+        .footer a:hover {
+            text-decoration: underline;
+        }
+
+        @media (max-width: 768px) {
+            .header h1 {
+                font-size: 2em;
+            }
+            
+            .content {
+                padding: 20px;
+            }
+            
+            .step {
+                padding: 20px;
+            }
+            
+            .palette-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🗺️ Custom Map Generator</h1>
+            <p>Create beautiful custom maps using real OpenStreetMap data</p>
+            <div class="tech-stack">
+                <strong>Powered by:</strong> GitHub Pages + HuggingFace Spaces + OSMnx
+                <div id="backendStatus" class="status-indicator status-loading" style="margin-top: 10px;">
+                    <span>⏳</span> Checking backend status...
+                </div>
+            </div>
+        </div>
+
+        <div class="content">
+            <!-- Step 1: City Selection -->
+            <div class="step">
+                <h2><span class="step-icon">1</span>Select Your City</h2>
+                <div class="form-group">
+                    <label>Enter city name (e.g., Saigon, Ha Noi, Tokyo...)</label>
+                    <div class="search-container">
+                        <input type="text" id="cityInput" placeholder="Search for a city...">
+                        <button onclick="searchCity()" id="searchBtn">🔍 Search</button>
+                    </div>
+                </div>
+                
+                <div id="searchResults" class="search-results"></div>
+                <div id="selectedCity" class="selected-city"></div>
+                <div id="searchError" class="error-message"></div>
+            </div>
+
+            <!-- Step 2: Data Selection -->
+            <div class="step">
+                <h2><span class="step-icon">2</span>Choose Data Types</h2>
+                <p style="margin-bottom: 20px; color: #6b7280;">Select which map features to include (roads are always included)</p>
+                
+                <div class="checkbox-group">
+                    <label class="checkbox-item">
+                        <input type="checkbox" id="loadWater" checked>
+                        <div>
+                            <strong>Water Features</strong>
+                            <div style="color: #6b7280; font-size: 14px;">Rivers, lakes, coastlines</div>
+                        </div>
+                    </label>
+                    
+                    <label class="checkbox-item">
+                        <input type="checkbox" id="loadBuildings" checked>
+                        <div>
+                            <strong>Buildings</strong>
+                            <div style="color: #6b7280; font-size: 14px;">Building footprints and structures</div>
+                        </div>
+                    </label>
+                </div>
+            </div>
+
+            <!-- Step 3: Style Selection -->
+            <div class="step">
+                <h2><span class="step-icon">3</span>Choose Your Style</h2>
+                
+                <div class="palette-grid" id="paletteGrid">
+                    <!-- Palettes will be dynamically generated -->
+                </div>
+            </div>
+
+            <!-- Step 4: Generate -->
+            <div class="step">
+                <h2><span class="step-icon">4</span>Generate Your Map</h2>
+                
+                <div id="generationSummary" style="background: white; padding: 20px; border-radius: 10px; margin-bottom: 20px; display: none;">
+                    <h3 style="margin-bottom: 15px; color: #1e293b;">Generation Summary:</h3>
+                    <div id="summaryContent"></div>
+                </div>
+
+                <button class="generate-btn" onclick="generateMap()" id="generateBtn">
+                    🎨 Generate My Map
+                </button>
+
+                <div id="progressContainer" class="progress-container">
+                    <div class="progress-bar">
+                        <div class="progress-fill" id="progressFill"></div>
+                    </div>
+                    <div class="progress-text" id="progressText">Initializing...</div>
+                </div>
+
+                <div id="resultContainer" class="result-container">
+                    <h3 style="color: #15803d; margin-bottom: 20px;">✅ Map Generated Successfully!</h3>
+                    <div class="result-preview" id="resultPreview"></div>
+                    <button class="download-btn" onclick="downloadMap()">📥 Download High-Res Map</button>
+                </div>
+                
+                <div id="generateError" class="error-message"></div>
+            </div>
+        </div>
+
+        <div class="footer">
+            <p>
+                <strong>Open Source Project</strong> • 
+                <a href="https://github.com/yourusername/map-generator" target="_blank">GitHub</a> • 
+                <a href="https://huggingface.co/spaces/yourusername/map-generator-api" target="_blank">HuggingFace Space</a>
+            </p>
+            <p style="margin-top: 10px; font-size: 0.9em;">
+                Built with ❤️ using OpenStreetMap data • Completely free to use
+            </p>
+        </div>
+    </div>
+
+    <script>
+        // Configuration - UPDATE THESE URLs
+        const HUGGINGFACE_SPACE_URL = 'https://lqtue-map-generator-api.hf.space';
+        const API_BASE = HUGGINGFACE_SPACE_URL;
+        
+        // Global state
+        let selectedCityData = null;
+        let selectedPalette = 'Liverpool Official';
+        let generatedImageData = null;
+        let backendOnline = false;
+        
+        // Palette definitions (for display)
+        const palettes = {
+            "Liverpool Official": {
+                colors: ["#b4d4c0", "#005b8a", "#6a6050", "#de006a", "#7c3c7c"],
+                name: "Liverpool Official"
+            },
+            "Monochrome Dark": {
+                colors: ["#222222", "#4A90E2", "#444444", "#FFFFFF", "#BBBBBB"],
+                name: "Monochrome Dark"
+            },
+            "Blueprint": {
+                colors: ["#FFFFFF", "#A8D8F0", "#D0E0E3", "#003366", "#005A9C"],
+                name: "Blueprint"
+            },
+            "Vintage Paper": {
+                colors: ["#F5EFE6", "#A9C7D9", "#E0D6C8", "#5D4037", "#795548"],
+                name: "Vintage Paper"
+            }
+        };
+
+        // Initialize the app
+        function initializeApp() {
+            createPaletteGrid();
+            checkBackendStatus();
+        }
+
+        // Check if HuggingFace backend is online
+        async function checkBackendStatus() {
+            const statusDiv = document.getElementById('backendStatus');
+            
+            try {
+                const response = await fetch(`${API_BASE}/health`, {
+                    method: 'GET',
+                    headers: {
+                        'Accept': 'application/json',
+                    }
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    backendOnline = true;
+                    statusDiv.className = 'status-indicator status-online';
+                    statusDiv.innerHTML = '<span>✅</span> Backend online - Ready to generate maps!';
+                } else {
+                    throw new Error('Backend not responding');
+                }
+            } catch (error) {
+                console.error('Backend health check failed:', error);
+                backendOnline = false;
+                statusDiv.className = 'status-indicator status-offline';
+                statusDiv.innerHTML = '<span>❌</span> Backend starting up... Please wait 30 seconds and refresh';
+                
+                // Retry after 30 seconds
+                setTimeout(checkBackendStatus, 30000);
+            }
+        }
+
+        // Create palette selection grid
+        function createPaletteGrid() {
+            const grid = document.getElementById('paletteGrid');
+            grid.innerHTML = '';
+            
+            Object.entries(palettes).forEach(([key, palette]) => {
+                const card = document.createElement('div');
+                card.className = `palette-card ${key === selectedPalette ? 'selected' : ''}`;
+                card.onclick = () => selectPalette(key, card);
+                
+                const colorsHtml = palette.colors.map(color => 
+                    `<div class="palette-color" style="background-color: ${color}"></div>`
+                ).join('');
+                
+                card.innerHTML = `
+                    <div class="palette-name">${palette.name}</div>
+                    <div class="palette-colors">${colorsHtml}</div>
+                `;
+                
+                grid.appendChild(card);
+            });
+        }
+
+        // Select palette
+        function selectPalette(paletteKey, cardElement) {
+            selectedPalette = paletteKey;
+            document.querySelectorAll('.palette-card').forEach(card => {
+                card.classList.remove('selected');
+            });
+            cardElement.classList.add('selected');
+            updateGenerationSummary();
+        }
+
+        // Search for cities using HuggingFace API
+        async function searchCity() {
+            const query = document.getElementById('cityInput').value.trim();
+            const searchBtn = document.getElementById('searchBtn');
+            const errorDiv = document.getElementById('searchError');
+            
+            if (!query) {
+                showError(errorDiv, 'Please enter a city name');
+                return;
+            }
+
+            if (!backendOnline) {
+                showError(errorDiv, 'Backend is not ready yet. Please wait and try again.');
+                return;
+            }
+
+            // Show loading state
+            searchBtn.disabled = true;
+            searchBtn.textContent = '🔄 Searching...';
+            errorDiv.classList.remove('show');
+
+            try {
+                const response = await fetch(`${API_BASE}/api/search-city`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json',
+                    },
+                    body: JSON.stringify({ query })
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+
+                const data = await response.json();
+                
+                if (data.error) {
+                    throw new Error(data.error);
+                }
+
+                if (data.results && data.results.length > 0) {
+                    displaySearchResults(data.results);
+                    if (data.note) {
+                        console.log('Search note:', data.note);
+                    }
+                } else {
+                    showError(errorDiv, 'No results found. Try a different city name or check spelling.');
+                }
+
+            } catch (error) {
+                console.error('Search error:', error);
+                
+                // Show helpful error messages
+                let errorMessage = 'Search failed. ';
+                if (error.message.includes('Failed to fetch')) {
+                    errorMessage += 'Backend may be starting up. Please wait 30 seconds and try again.';
+                } else if (error.message.includes('HTTP 5')) {
+                    errorMessage += 'Server error. Please try again in a moment.';
+                } else {
+                    errorMessage += error.message;
+                }
+                
+                showError(errorDiv, errorMessage);
+            } finally {
+                searchBtn.disabled = false;
+                searchBtn.textContent = '🔍 Search';
+            }
+        }
+
+        // Display search results
+        function displaySearchResults(results) {
+            const container = document.getElementById('searchResults');
+            container.innerHTML = '';
+            
+            results.forEach(result => {
+                const item = document.createElement('div');
+                item.className = 'search-result';
+                item.textContent = result.name;
+                item.onclick = () => selectCity(result);
+                container.appendChild(item);
+            });
+            
+            container.classList.add('show');
+        }
+
+        // Select city
+        function selectCity(cityData) {
+            selectedCityData = cityData;
+            
+            // Hide search results
+            document.getElementById('searchResults').classList.remove('show');
+            
+            // Show selected city
+            const selectedDiv = document.getElementById('selectedCity');
+            selectedDiv.innerHTML = `<strong>Selected:</strong> ${cityData.name}`;
+            selectedDiv.classList.add('show');
+            
+            updateGenerationSummary();
+        }
+
+        // Update generation summary
+        function updateGenerationSummary() {
+            if (!selectedCityData) return;
+            
+            const summaryDiv = document.getElementById('generationSummary');
+            const contentDiv = document.getElementById('summaryContent');
+            
+            const waterEnabled = document.getElementById('loadWater').checked;
+            const buildingsEnabled = document.getElementById('loadBuildings').checked;
+            
+            contentDiv.innerHTML = `
+                <div style="margin-bottom: 8px;">• <strong>City:</strong> ${selectedCityData.name}</div>
+                <div style="margin-bottom: 8px;">• <strong>Style:</strong> ${selectedPalette}</div>
+                <div style="margin-bottom: 8px;">• <strong>Water features:</strong> ${waterEnabled ? 'Included' : 'Not included'}</div>
+                <div>• <strong>Buildings:</strong> ${buildingsEnabled ? 'Included' : 'Not included'}</div>
+            `;
+            
+            summaryDiv.style.display = 'block';
+        }
+
+        // Generate map using HuggingFace API
+        async function generateMap() {
+            if (!selectedCityData) {
+                const errorDiv = document.getElementById('generateError');
+                showError(errorDiv, 'Please select a city first');
+                return;
+            }
+
+            if (!backendOnline) {
+                const errorDiv = document.getElementById('generateError');
+                showError(errorDiv, 'Backend is not ready. Please wait and try again.');
+                return;
+            }
+
+            const btn = document.getElementById('generateBtn');
+            const progressContainer = document.getElementById('progressContainer');
+            const progressFill = document.getElementById('progressFill');
+            const progressText = document.getElementById('progressText');
+            const resultContainer = document.getElementById('resultContainer');
+            const errorDiv = document.getElementById('generateError');
+            
+            // Reset states
+            errorDiv.classList.remove('show');
+            resultContainer.classList.remove('show');
+            
+            // Show loading state
+            btn.disabled = true;
+            btn.textContent = 'Generating Map...';
+            progressContainer.classList.add('show');
+            
+            // Animate progress bar
+            progressText.textContent = 'Preparing map generation...';
+            progressFill.style.width = '10%';
+
+            try {
+                const requestData = {
+                    city_name: selectedCityData.name,
+                    palette: selectedPalette,
+                    load_water: document.getElementById('loadWater').checked,
+                    load_buildings: document.getElementById('loadBuildings').checked
+                };
+
+                progressText.textContent = 'Sending request to HuggingFace...';
+                progressFill.style.width = '20%';
+
+                const response = await fetch(`${API_BASE}/api/generate-map`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json',
+                    },
+                    body: JSON.stringify(requestData)
+                });
+
+                progressText.textContent = 'Loading map data from OpenStreetMap...';
+                progressFill.style.width = '40%';
+
+                if (!response.ok) {
+                    const errorData = await response.json().catch(() => ({}));
+                    throw new Error(errorData.error || `HTTP ${response.status}: ${response.statusText}`);
+                }
+
+                progressText.textContent = 'Processing roads, water, and buildings...';
+                progressFill.style.width = '70%';
+
+                const data = await response.json();
+                
+                if (!data.success) {
+                    throw new Error(data.error || 'Map generation failed');
+                }
+
+                progressText.textContent = 'Rendering final high-resolution map...';
+                progressFill.style.width = '90%';
+
+                // Store the generated image data
+                generatedImageData = data.image;
+
+                // Simulate final processing
+                await new Promise(resolve => setTimeout(resolve, 1000));
+
+                progressText.textContent = 'Map generation complete!';
+                progressFill.style.width = '100%';
+
+                // Show result
+                setTimeout(() => {
+                    progressContainer.classList.remove('show');
+                    displayMapResult(data);
+                }, 500);
+
+            } catch (error) {
+                console.error('Generation error:', error);
+                progressContainer.classList.remove('show');
+                
+                // Show helpful error messages
+                let errorMessage = 'Map generation failed. ';
+                if (error.message.includes('Failed to fetch')) {
+                    errorMessage += 'Connection lost. Please check your internet and try again.';
+                } else if (error.message.includes('timeout')) {
+                    errorMessage += 'Generation took too long. Try a smaller city or try again later.';
+                } else if (error.message.includes('road data')) {
+                    errorMessage += 'Could not find map data for this location. Try a different city name.';
+                } else {
+                    errorMessage += error.message;
+                }
+                
+                showError(errorDiv, errorMessage);
+            } finally {
+                btn.disabled = false;
+                btn.textContent = '🎨 Generate My Map';
+            }
+        }
+
+        // Display the generated map
+        function displayMapResult(data) {
+            const resultContainer = document.getElementById('resultContainer');
+            const preview = document.getElementById('resultPreview');
+            
+            // Create image element
+            const img = document.createElement('img');
+            img.src = data.image;
+            img.alt = `Custom map of ${data.city}`;
+            img.style.maxWidth = '100%';
+            img.style.height = 'auto';
+            img.style.borderRadius = '10px';
+            img.style.boxShadow = '0 10px 30px rgba(0,0,0,0.2)';
+            
+            // Add loading handler
+            img.onload = () => {
+                console.log('Map image loaded successfully');
+            };
+            
+            img.onerror = () => {
+                console.error('Failed to load map image');
+                preview.innerHTML = '<p style="color: #dc2626;">Failed to load map image. Please try generating again.</p>';
+            };
+            
+            // Clear and add image
+            preview.innerHTML = '';
+            preview.appendChild(img);
+            
+            // Show result container
+            resultContainer.classList.add('show');
+        }
+
+        // Download the generated map
+        function downloadMap() {
+            if (!generatedImageData || !selectedCityData) {
+                alert('No map to download. Please generate a map first.');
+                return;
+            }
+
+            try {
+                // Create download link
+                const link = document.createElement('a');
+                link.href = generatedImageData;
+                
+                // Generate filename
+                const cityName = selectedCityData.name.replace(/[^a-zA-Z0-9]/g, '_');
+                const timestamp = new Date().toISOString().slice(0, 10);
+                const paletteSlug = selectedPalette.replace(/\s+/g, '_').toLowerCase();
+                link.download = `${cityName}_map_${paletteSlug}_${timestamp}.png`;
+                
+                // Trigger download
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                
+                console.log('Map download initiated');
+                
+            } catch (error) {
+                console.error('Download error:', error);
+                alert('Download failed. You can right-click the map image and save it manually.');
+            }
+        }
+
+        // Utility function to show errors
+        function showError(errorDiv, message) {
+            errorDiv.textContent = message;
+            errorDiv.classList.add('show');
+            
+            // Auto-hide error after 10 seconds
+            setTimeout(() => {
+                errorDiv.classList.remove('show');
+            }, 10000);
+        }
+
+        // Add event listeners
+        document.getElementById('cityInput').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                searchCity();
+            }
+        });
+
+        document.getElementById('loadWater').addEventListener('change', updateGenerationSummary);
+        document.getElementById('loadBuildings').addEventListener('change', updateGenerationSummary);
+
+        // Initialize the app when page loads
+        document.addEventListener('DOMContentLoaded', initializeApp);
+        
+        // Log configuration for debugging
+        console.log('Map Generator initialized');
+        console.log('HuggingFace Space URL:', HUGGINGFACE_SPACE_URL);
+        console.log('Remember to update the URLs in the script!');
+    </script>
+</body>
+</html>
