@@ -218,6 +218,14 @@
             cursor: pointer;
             transition: background-color 0.2s ease;
         }
+        .search-result-note {
+            padding: 10px 20px;
+            font-size: 0.9em;
+            color: #6e6e73;
+            background-color: #f9f9f9;
+            border-top: 1px solid #f5f5f7;
+        }
+
 
         .search-result:hover {
             background: #f5f5f7;
@@ -396,7 +404,7 @@
             height: 100%;
             background: #007aff;
             width: 0%;
-            transition: width 0.3s ease;
+            transition: width 0.3s ease, background-color 0.3s ease;
         }
 
         .progress-text {
@@ -421,14 +429,29 @@
 
         .result-container h3 {
             color: #2e7d2e;
-            margin-bottom: 20px;
+            margin-bottom: 15px;
         }
+        
+        .result-status {
+            margin-top: 15px;
+            margin-bottom: 20px;
+            white-space: pre-wrap; /* To respect newlines from backend status */
+            text-align: left;
+            background-color: #e9f5e9; /* Lighter green background */
+            padding: 12px;
+            border-radius: 6px;
+            font-size: 0.95em;
+            color: #1d1d1f;
+            border: 1px solid #c8e6c9;
+        }
+
 
         .result-preview img {
             max-width: 100%;
             height: auto;
             border-radius: 8px;
             box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+            margin-bottom:15px;
         }
 
         .download-btn {
@@ -439,7 +462,7 @@
             border-radius: 8px;
             font-weight: 600;
             cursor: pointer;
-            margin-top: 20px;
+            /* margin-top: 20px; */ /* Removed as status is above it */
         }
 
         .download-btn:hover {
@@ -492,6 +515,7 @@
             border-radius: 8px;
             margin-top: 16px;
             display: none;
+            white-space: pre-wrap; /* To respect newlines in error messages */
         }
 
         .error-message.show {
@@ -581,17 +605,20 @@
                     </div>
                 </div>
                 
-                <div id="searchResults" class="search-results"></div>
+                <div id="searchResults" class="search-results">
+                    <!-- Search results will appear here -->
+                    <!-- Note from backend might appear as last item if added -->
+                </div>
                 <div id="selectedCity" class="selected-city"></div>
                 <div id="searchError" class="error-message"></div>
                 
                 <div class="tips-box">
                     <h4>💡 Tips for best results:</h4>
                     <ul>
-                        <li>Try different city names if search doesn't work (e.g., "Ho Chi Minh City" instead of "Saigon")</li>
-                        <li>Water and building data may not be available for all locations</li>
-                        <li>Generation time varies based on city size and selected data types</li>
-                        <li>Use advanced settings to fine-tune your map's appearance</li>
+                        <li>Start with common city names. For larger cities, try specifying the country (e.g., "Paris, France").</li>
+                        <li>If OSMnx is unavailable on the server, mock data will be used.</li>
+                        <li>Generation time varies: 10s for small cities, up to 1-2 minutes for large ones.</li>
+                        <li>The first generation for a city might be slower due to data caching.</li>
                     </ul>
                 </div>
             </div>
@@ -603,7 +630,7 @@
                     <h2>Step 2: Choose Data Types</h2>
                 </div>
                 
-                <p style="margin-bottom: 24px; color: #6e6e73;">Select which map features to include (roads are always included)</p>
+                <p style="margin-bottom: 24px; color: #6e6e73;">Select which map features to include (roads are always included). Availability depends on OpenStreetMap data.</p>
                 
                 <div class="checkbox-group">
                     <label class="checkbox-item">
@@ -656,8 +683,9 @@
                     </div>
                     
                     <div id="resultContainer" class="result-container">
-                        <h3>✅ Map Generated Successfully!</h3>
+                        <h3><!-- Status Title --></h3>
                         <div class="result-preview" id="resultPreview"></div>
+                        <div class="result-status" id="resultStatusMessage"></div>
                         <button class="download-btn" onclick="downloadMap()">Download Map</button>
                     </div>
                     
@@ -675,15 +703,15 @@
 
     <script>
         // Configuration
-        const HUGGINGFACE_SPACE_URL = 'https://lqtue-cityposter.hf.space';
+        const HUGGINGFACE_SPACE_URL = 'https://lqtue-cityposter.hf.space'; // Replace with your actual Space URL if different
         
         // Global state
         let currentStep = 1;
-        let selectedCityData = null;
+        let selectedCityData = null; // Will store {name, bbox, lat, lon}
         let selectedPalette = 'Liverpool Official';
-        let generatedImageData = null;
+        let generatedImageData = null; // Will store base64 image string
         
-        // Palette definitions
+        // Palette definitions (should match backend)
         const palettes = {
             "Liverpool Official": {
                 colors: ["#b4d4c0", "#005b8a", "#6a6050", "#de006a", "#7c3c7c"],
@@ -703,55 +731,39 @@
             }
         };
 
-        // Initialize
         function initializeApp() {
             createPaletteGrid();
             updateStepDisplay();
         }
 
-        // Create palette grid
         function createPaletteGrid() {
             const grid = document.getElementById('paletteGrid');
             grid.innerHTML = '';
-            
             Object.entries(palettes).forEach(([key, palette]) => {
                 const card = document.createElement('div');
                 card.className = `palette-card ${key === selectedPalette ? 'selected' : ''}`;
                 card.onclick = () => selectPalette(key, card);
-                
                 const colorsHtml = palette.colors.map(color => 
                     `<div class="palette-color" style="background-color: ${color}"></div>`
                 ).join('');
-                
                 card.innerHTML = `
                     <div class="palette-name">${palette.name}</div>
                     <div class="palette-colors">${colorsHtml}</div>
                 `;
-                
                 grid.appendChild(card);
             });
         }
 
-        // Select palette
         function selectPalette(paletteKey, cardElement) {
             selectedPalette = paletteKey;
-            document.querySelectorAll('.palette-card').forEach(card => {
-                card.classList.remove('selected');
-            });
+            document.querySelectorAll('.palette-card').forEach(card => card.classList.remove('selected'));
             cardElement.classList.add('selected');
         }
 
-        // Update step display
         function updateStepDisplay() {
-            // Hide all steps
-            document.querySelectorAll('.step-section').forEach(section => {
-                section.classList.remove('active');
-            });
-            
-            // Show current step
+            document.querySelectorAll('.step-section').forEach(section => section.classList.remove('active'));
             document.getElementById(`step${currentStep}`).classList.add('active');
             
-            // Update progress circles
             for (let i = 1; i <= 4; i++) {
                 const circle = document.getElementById(`step${i}Circle`);
                 if (i < currentStep) {
@@ -766,11 +778,7 @@
                 }
             }
             
-            // Update progress line
-            const progressPercentage = ((currentStep - 1) / 3) * 100;
-            document.getElementById('progressLine').style.width = `${progressPercentage}%`;
-            
-            // Update navigation buttons
+            document.getElementById('progressLine').style.width = `${((currentStep - 1) / 3) * 100}%`;
             document.getElementById('backBtn').disabled = currentStep === 1;
             const nextBtn = document.getElementById('nextBtn');
             
@@ -782,22 +790,14 @@
             }
         }
 
-        // Navigation functions
         function nextStep() {
-            if (currentStep < 4) {
-                currentStep++;
-                updateStepDisplay();
-            }
+            if (currentStep < 4) { currentStep++; updateStepDisplay(); }
         }
 
         function previousStep() {
-            if (currentStep > 1) {
-                currentStep--;
-                updateStepDisplay();
-            }
+            if (currentStep > 1) { currentStep--; updateStepDisplay(); }
         }
 
-        // Search functionality
         async function searchCity() {
             const query = document.getElementById('cityInput').value.trim();
             const searchBtn = document.getElementById('searchBtn');
@@ -805,7 +805,7 @@
             const searchResultsContainer = document.getElementById('searchResults');
             
             if (!query) {
-                showError(errorDiv, 'Please enter a city name');
+                showError(errorDiv, 'Please enter a city name.');
                 return;
             }
 
@@ -813,47 +813,43 @@
             searchBtn.textContent = 'Searching...';
             errorDiv.classList.remove('show');
             searchResultsContainer.classList.remove('show');
-            searchResultsContainer.innerHTML = ''; // Clear previous results
+            searchResultsContainer.innerHTML = '';
 
             try {
                 const response = await fetch(`${HUGGINGFACE_SPACE_URL}/api/predict`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        "data": [query],
-                        "fn_index": 0  // City search function
-                    })
+                    body: JSON.stringify({ "data": [query], "fn_index": 0 }) // fn_index 0 for search_city_real
                 });
 
                 if (!response.ok) {
                     const errorData = await response.json().catch(() => null);
-                    throw new Error(`API request failed with status ${response.status}: ${errorData ? errorData.error || 'Unknown API error' : 'Could not parse error response'}`);
+                    throw new Error(`API request failed: ${response.status} ${response.statusText}. ${errorData ? errorData.error || '' : ''}`);
                 }
 
                 const jsonResponse = await response.json();
+                // Expected: jsonResponse.data[0] = { results: [ {name:..., bbox:..., ...}, ... ], note: "..." }
                 
-                // Assuming the API returns data in the format: { data: [[{name: "City1", ...}, {name: "City2", ...}]] }
-                // or { data: [{name: "City1", ...}, {name: "City2", ...}] } if fn_index 0 directly returns the list
-                // We need to ensure `apiResults` is the array of city objects.
                 let apiResults = [];
-                if (jsonResponse.data && Array.isArray(jsonResponse.data)) {
-                    if (Array.isArray(jsonResponse.data[0]) && jsonResponse.data[0].every(item => typeof item === 'object' && item.hasOwnProperty('name'))) {
-                         apiResults = jsonResponse.data[0]; // Case: { data: [[{city1}, {city2}]] }
-                    } else if (jsonResponse.data.every(item => typeof item === 'object' && item.hasOwnProperty('name'))) {
-                         apiResults = jsonResponse.data; // Case: { data: [{city1}, {city2}] }
-                    }
-                }
+                let searchNote = "";
 
-                if (apiResults && apiResults.length > 0) {
-                    displaySearchResults(apiResults);
+                if (jsonResponse.data && jsonResponse.data[0]) {
+                    const backendOutput = jsonResponse.data[0];
+                    if (backendOutput && Array.isArray(backendOutput.results)) {
+                        apiResults = backendOutput.results;
+                    }
+                    if (backendOutput && typeof backendOutput.note === 'string') {
+                        searchNote = backendOutput.note;
+                    }
                 } else {
-                    searchResultsContainer.innerHTML = '<div class="search-result">No cities found. Try a different name.</div>';
-                    searchResultsContainer.classList.add('show');
+                    console.warn("Unexpected search API response structure:", jsonResponse);
                 }
+                
+                displaySearchResults(apiResults, searchNote);
                 
             } catch (error) {
                 console.error('Search error:', error);
-                showError(errorDiv, `Search failed: ${error.message}. Please try again.`);
+                showError(errorDiv, `Search failed: ${error.message}`);
                 searchResultsContainer.innerHTML = `<div class="search-result">Error: ${error.message}</div>`;
                 searchResultsContainer.classList.add('show');
             } finally {
@@ -862,65 +858,55 @@
             }
         }
 
-        function displaySearchResults(results) {
+        function displaySearchResults(results, note) {
             const container = document.getElementById('searchResults');
-            container.innerHTML = ''; // Clear previous items, if any
+            container.innerHTML = ''; 
             
             if (!results || results.length === 0) {
-                container.innerHTML = '<div class="search-result">No results found.</div>';
-                container.classList.add('show');
-                return;
+                container.innerHTML = `<div class="search-result">No cities found. ${note || ''}</div>`;
+            } else {
+                results.forEach(result => {
+                    if (result && typeof result.name === 'string') {
+                        const item = document.createElement('div');
+                        item.className = 'search-result';
+                        item.textContent = result.name; // Display name like "Paris, Ile-de-France, France"
+                        item.onclick = () => selectCity(result); // Pass the full result object
+                        container.appendChild(item);
+                    }
+                });
             }
-
-            results.forEach(result => {
-                // Ensure each result has a 'name' property.
-                // The Hugging Face API might return more data per city, but we only need 'name' for display here.
-                // And we pass the whole 'result' object to selectCity.
-                if (result && typeof result.name === 'string') {
-                    const item = document.createElement('div');
-                    item.className = 'search-result';
-                    item.textContent = result.name;
-                    item.onclick = () => selectCity(result); // Pass the full result object
-                    container.appendChild(item);
-                } else {
-                    console.warn("Skipping search result item due to missing 'name':", result);
-                }
-            });
-            
+            if (note) {
+                const noteItem = document.createElement('div');
+                noteItem.className = 'search-result-note';
+                noteItem.textContent = `Note: ${note}`;
+                container.appendChild(noteItem);
+            }
             container.classList.add('show');
         }
 
         function selectCity(cityData) {
-            selectedCityData = cityData; // Store the full city data object
-            
+            selectedCityData = cityData; // Stores {name, bbox, lat, lon, ...}
             document.getElementById('searchResults').classList.remove('show');
-            
             const selectedDiv = document.getElementById('selectedCity');
-            // Use cityData.name for display, assuming it exists
-            selectedDiv.innerHTML = `<strong>Selected:</strong> ${cityData.name || 'Unknown City'}`;
+            selectedDiv.innerHTML = `<strong>Selected:</strong> ${cityData.name}`;
             selectedDiv.classList.add('show');
-            
-            document.getElementById('searchError').classList.remove('show'); // Hide error on successful selection
-            updateStepDisplay(); // This will enable the "Continue" button
+            document.getElementById('searchError').classList.remove('show');
+            updateStepDisplay(); // Enables "Continue" button
         }
 
-        // Generate map (simplified for demo)
         async function generateMap() {
-            if (!selectedCityData) {
+            if (!selectedCityData || !selectedCityData.name) {
                 showError(document.getElementById('generateError'), 'Please select a city first.');
                 return;
             }
-            if (!selectedCityData.name) { // Basic check if city data is valid
-                showError(document.getElementById('generateError'), 'Selected city data is incomplete. Please re-select a city.');
-                return;
-            }
-
 
             const btn = document.getElementById('generateBtn');
             const progressContainer = document.getElementById('progressContainer');
             const progressFill = document.getElementById('progressFill');
             const progressText = document.getElementById('progressText');
             const resultContainer = document.getElementById('resultContainer');
+            const resultPreviewDiv = document.getElementById('resultPreview');
+            const resultStatusDiv = document.getElementById('resultStatusMessage');
             const generateErrorDiv = document.getElementById('generateError');
             
             btn.disabled = true;
@@ -928,98 +914,144 @@
             progressContainer.classList.add('show');
             resultContainer.classList.remove('show');
             generateErrorDiv.classList.remove('show');
+            progressFill.style.backgroundColor = '#007aff'; // Reset color
             
-            // Simulate progress (replace with actual API call to your generation endpoint)
-            // For a real implementation, you'd use another fn_index for generation,
-            // passing selectedCityData.name (or other relevant identifiers), selectedPalette,
-            // and checkbox states (loadWater, loadBuildings).
-            // e.g., body: JSON.stringify({ "data": [selectedCityData.name, selectedPalette, document.getElementById('loadWater').checked, ...], "fn_index": 1 })
-            
-            console.log("Generating map for:", selectedCityData.name);
-            console.log("Palette:", selectedPalette);
-            console.log("Load Water:", document.getElementById('loadWater').checked);
-            console.log("Load Buildings:", document.getElementById('loadBuildings').checked);
+            let serverProgressInterval;
 
-            const steps = ['Initializing generation...', 'Loading map data...', 'Applying style...', 'Rendering image...'];
-            
             try {
-                for (let i = 0; i < steps.length; i++) {
-                    progressText.textContent = steps[i];
-                    progressFill.style.width = `${((i + 1) / steps.length) * 100}%`;
-                    await new Promise(resolve => setTimeout(resolve, 1000 + Math.random() * 1000)); // Simulate variable step time
-                }
-            
-                // Placeholder for actual image data or URL from API
-                generatedImageData = 'path/to/your/generated/map.png'; // Replace with API response
-                
-                // Show success (in real app, this would show the actual generated map)
-                progressText.textContent = "Generation complete!";
-                await new Promise(resolve => setTimeout(resolve, 500)); // Short delay before showing result
+                progressText.textContent = 'Preparing generation request...';
+                progressFill.style.width = `10%`;
+                await new Promise(resolve => setTimeout(resolve, 200));
 
-                progressContainer.classList.remove('show');
-                resultContainer.classList.add('show');
+                progressText.textContent = 'Sending request to server... (this may take some time)';
+                progressFill.style.width = `20%`;
+
+                const loadWater = document.getElementById('loadWater').checked;
+                const loadBuildings = document.getElementById('loadBuildings').checked;
+
+                // Animate progress bar slowly while waiting for server
+                let currentProgress = 20;
+                serverProgressInterval = setInterval(() => {
+                    if (currentProgress < 85) { // Don't go to 100% until response received
+                        currentProgress += 1;
+                        progressFill.style.width = `${currentProgress}%`;
+                    }
+                }, 300); // Adjust timing as needed, e.g. 300ms for slower progress
+
+                const response = await fetch(`${HUGGINGFACE_SPACE_URL}/api/predict`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        "data": [
+                            selectedCityData.name, // Pass the full display name from geocoding
+                            selectedPalette,
+                            loadWater,
+                            loadBuildings
+                        ],
+                        "fn_index": 1 // fn_index 1 for generate_real_map
+                    })
+                });
                 
-                const preview = document.getElementById('resultPreview');
-                // Replace with an <img> tag if generatedImageData is a URL
-                preview.innerHTML = `<div style="width: 100%; height: 300px; background: linear-gradient(135deg, ${palettes[selectedPalette].colors[0]} 0%, ${palettes[selectedPalette].colors[1]} 100%); border-radius: 8px; display: flex; align-items: center; justify-content: center; color: white; font-size: 18px; text-shadow: 1px 1px 2px black;">🗺️ Map of ${selectedCityData.name} (${selectedPalette}) would appear here!</div>`;
-                // If you get a base64 image string from the API:
-                // preview.innerHTML = `<img src="data:image/png;base64,${generatedImageData}" alt="Generated Map">`;
-            
+                clearInterval(serverProgressInterval); // Stop animation
+
+                if (!response.ok) {
+                    const errorData = await response.json().catch(() => ({ error: "Unknown API error" }));
+                    let errorMsg = `API request failed: ${response.status} ${response.statusText}`;
+                    if (errorData && errorData.error) {
+                        errorMsg += `. Server error: ${errorData.error}`;
+                    } else if (errorData && errorData.data && errorData.data[1]) { // Check if backend provided status
+                         errorMsg += `. ${errorData.data[1]}`;
+                    }
+                    throw new Error(errorMsg);
+                }
+                
+                progressText.textContent = 'Processing server response...';
+                progressFill.style.width = `90%`;
+                const jsonResponse = await response.json();
+
+                if (jsonResponse.error) { // Top-level error from Gradio/HF wrapper
+                    throw new Error(jsonResponse.error);
+                }
+
+                const imageBase64 = jsonResponse.data[0]; // Expected: base64 image string or null
+                const statusMessage = jsonResponse.data[1]; // Expected: status message string
+
+                if (imageBase64) {
+                    generatedImageData = imageBase64;
+                    resultPreviewDiv.innerHTML = `<img src="data:image/png;base64,${generatedImageData}" alt="Generated Map">`;
+                    
+                    const resultContainerH3 = resultContainer.querySelector('h3');
+                    if (statusMessage.includes("✅")) {
+                        resultContainerH3.textContent = "✅ Map Generated Successfully!";
+                    } else if (statusMessage.includes("⚠️")) {
+                        resultContainerH3.textContent = "⚠️ Map Generated with Warnings";
+                         progressFill.style.backgroundColor = '#ffc107'; // Yellow for warning
+                    } else {
+                        resultContainerH3.textContent = "ℹ️ Map Generation Complete";
+                    }
+                    resultStatusDiv.textContent = statusMessage;
+                    resultContainer.classList.add('show');
+                    
+                    progressFill.style.width = `100%`;
+                    progressText.textContent = "Completed.";
+                    
+                    setTimeout(() => {
+                        progressContainer.classList.remove('show');
+                    }, 1500);
+
+                } else {
+                    // No image, statusMessage should explain why
+                    let errorMessage = statusMessage || "Map generation failed: No image data received and no specific error message.";
+                    if (statusMessage && (statusMessage.includes("❌") || statusMessage.toLowerCase().includes("error"))) {
+                         progressFill.style.backgroundColor = '#dc3545'; // Red for error
+                    }
+                    throw new Error(errorMessage);
+                }
+
             } catch (error) {
+                clearInterval(serverProgressInterval); // Ensure interval is cleared on error
                 console.error("Generation error:", error);
-                showError(generateErrorDiv, `Map generation failed: ${error.message}`);
-                progressContainer.classList.remove('show');
+                showError(generateErrorDiv, `Map generation failed:\n${error.message}`);
+                progressFill.style.width = `100%`; // Show full bar but error color
+                progressFill.style.backgroundColor = '#dc3545'; // Red for error
+                progressText.textContent = "Error!";
+                // Keep progress container visible shortly to show error state
+                setTimeout(() => {
+                    progressContainer.classList.remove('show');
+                }, 3000);
+                resultContainer.classList.remove('show');
             } finally {
                 btn.disabled = false;
                 btn.textContent = 'Generate My Map';
-                // Reset progress bar for next attempt
-                progressFill.style.width = '0%';
-                progressText.textContent = 'Initializing...';
             }
         }
 
         function downloadMap() {
-            if (generatedImageData) {
-                // This is a placeholder. If generatedImageData is a URL:
-                // window.open(generatedImageData, '_blank'); 
-                // Or if it's base64 data, create a link and click it:
-                // const link = document.createElement('a');
-                // link.href = `data:image/png;base64,${generatedImageData}`;
-                // link.download = `${selectedCityData.name}_map.png`;
-                // document.body.appendChild(link);
-                // link.click();
-                // document.body.removeChild(link);
-                alert('Download functionality: Map would be downloaded using generatedImageData.');
+            if (generatedImageData && selectedCityData && selectedCityData.name) {
+                const link = document.createElement('a');
+                link.href = `data:image/png;base64,${generatedImageData}`;
+                const filename = `${selectedCityData.name.replace(/[^a-z0-9_.\-\s]/gi, '_').replace(/\s+/g, '_').toLowerCase()}_map.png`;
+                link.download = filename;
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
             } else {
-                alert('No map has been generated yet to download.');
+                alert('No map has been generated yet, or city data is missing.');
             }
         }
 
         function showError(errorDiv, message) {
             errorDiv.textContent = message;
             errorDiv.classList.add('show');
-            // Keep error message visible until next action or manual dismissal if preferred
-            // setTimeout(() => errorDiv.classList.remove('show'), 5000); 
         }
 
-        // Event listeners
         document.getElementById('cityInput').addEventListener('keypress', function(e) {
-            if (e.key === 'Enter') {
-                searchCity();
-            }
+            if (e.key === 'Enter') searchCity();
         });
         document.getElementById('cityInput').addEventListener('input', function() {
-            // Optionally clear selected city and disable next if user types again
-            if (selectedCityData) {
-                // selectedCityData = null;
-                // document.getElementById('selectedCity').classList.remove('show');
-                // updateStepDisplay(); // This would disable next button
-            }
-            document.getElementById('searchError').classList.remove('show'); // Hide error when user types
+            document.getElementById('searchError').classList.remove('show');
         });
 
-
-        // Initialize app
         document.addEventListener('DOMContentLoaded', initializeApp);
     </script>
 </body>
